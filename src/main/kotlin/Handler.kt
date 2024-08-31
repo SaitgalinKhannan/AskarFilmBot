@@ -22,6 +22,7 @@ import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.requests.abstracts.InputFile
 import dev.inmo.tgbotapi.requests.send.SendTextMessage
 import dev.inmo.tgbotapi.types.*
+import dev.inmo.tgbotapi.types.files.DocumentFile
 import dev.inmo.tgbotapi.types.files.PhotoSize
 import dev.inmo.tgbotapi.types.files.VideoFile
 import dev.inmo.tgbotapi.types.media.TelegramMediaPhoto
@@ -161,7 +162,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         kotlin.runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onDocument
             logger.i(user)
-            val path = processDocument(it.content.media, it.chat.id, it.messageId, user)
+            val path = processDocument(it.content.media, it.chat.id, it.messageId, user, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             e.printStackTrace()
@@ -295,7 +296,8 @@ suspend fun BehaviourContext.processVideo(
         """.trimIndent(),
         video = InputFile.fromFile(processedVideo),
         height = video.height,
-        width = video.width
+        width = video.width,
+        duration = 15
     )
 
     if (user.agreement) {
@@ -352,7 +354,8 @@ suspend fun BehaviourContext.processImage(
         """.trimIndent(),
         video = InputFile.fromFile(processedVideo),
         height = photo.height,
-        width = photo.width
+        width = photo.width,
+        duration = 15
     )
 
     if (user.agreement) {
@@ -378,6 +381,85 @@ suspend fun BehaviourContext.processImage(
     return@withContext file.absolutePath
 }
 
+suspend fun BehaviourContext.processDocument(
+    document: DocumentFile,
+    chatId: IdChatIdentifier,
+    messageId: MessageId,
+    user: User,
+    mode: String
+): String? = withContext(dispatcherIO) {
+    /*val fileName = video.fileName ?: "${video.fileId}.mp4"
+    val fileExtension = fileName.substringAfterLast('.')*/
+
+    val fName = if ("image" in document.mimeType.toString()) {
+        "${document.fileId}.jpg"
+    } else if ("video" in document.mimeType.toString()) {
+        document.fileName ?: "${document.fileId}.mp4"
+    } else {
+        throw Exception("Not supported MIME type")
+    }
+    val fileExtension = fName.substringAfterLast('.')
+
+    val currentDateTime = LocalDateTime.now()
+    val formattedDateTime = currentDateTime.format(formatter)
+    val newFileName = "${chatId.chatId.long}-${formattedDateTime}.${fileExtension}"
+    val destinationFile = File(
+        if (mode == "dev")
+            "/home/rose/RNT/AskarFilmBot/sources/${newFileName}"
+        else
+            "/sources/${newFileName}"
+    )
+    val file = downloadFile(document.fileId, destinationFile)
+    reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
+    val poster = choosePoster(chatId, mode) ?: return@withContext null
+    val (width, height) = if ("image" in document.mimeType.toString()) {
+        getImageDimensions(file)
+    } else if ("video" in document.mimeType.toString()) {
+        Pair(720, 1280)
+    } else {
+        throw Exception("Not supported MIME type")
+    }
+    logger.i("width: $width, height: $height")
+    val processedVideo = if ("image" in document.mimeType.toString()) {
+        ffMpeg.addImageToProcess(file, height, width, poster, mode)
+    } else if ("video" in document.mimeType.toString()) {
+        ffMpeg.addVideoToProcess(file, height, width, poster, mode)
+    } else {
+        throw Exception("Not supported MIME type")
+    }
+
+    val message = sendVideo(
+        chatId = chatId,
+        text = """
+            Готово!
+            Не забудь выложить его в своих соц сетях и увидимся в кино!
+        """.trimIndent(),
+        video = InputFile.fromFile(processedVideo),
+        duration = 15
+    )
+
+    if (user.agreement) {
+        reply(
+            toChatId = chatId,
+            toMessageId = messageId,
+            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
+            replyMarkup = inlineKeyboard {
+                row {
+                    dataButton("Нет", "no")
+                    dataButton("Да", "yes=${message.messageId.long}")
+                }
+            }
+        )
+    } else {
+        reply(
+            toChatId = chatId,
+            toMessageId = messageId,
+            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
+        )
+    }
+
+    return@withContext file.absolutePath
+}
 
 @OptIn(RiskFeature::class)
 suspend fun BehaviourContext.choosePoster(chatId: IdChatIdentifier, mode: String): String? {

@@ -1,6 +1,8 @@
+import dev.inmo.kslog.common.i
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import javax.imageio.ImageIO
 import kotlin.random.Random
 
 val overlayImages = listOf(
@@ -117,7 +119,9 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         val newHeight = if (height % 2 != 0) height - 1 else height
         val newWidth = if (width % 2 != 0) width - 1 else width
         //val scale = "$newWidth:$newHeight"
-        val scale = if (width > 1500) "1280:-2" else "$newWidth:$newHeight"
+        val scale = if (newWidth > 1500) "w=1280:h=-2" else "w=$newWidth:h=$newHeight"
+
+        logger.i("scale: $scale")
 
         val inputAudio = if (mode == "dev")
             inputAudioDev
@@ -144,6 +148,7 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
             "-b:a", "192k",  // Audio bitrate
             "-shortest",  // Trim video to the shortest input length
             "-movflags", "+faststart",  // Optimize for web playback
+            "-max_muxing_queue_size", "1024",
             outputVideo.absolutePath,
             "-y"  // Overwrite without asking
         )
@@ -191,3 +196,10 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         outputVideo.absolutePath,
         "-y"  // Overwrite without asking
     )*/
+
+fun getImageDimensions(imageFile: File): Pair<Int, Int> {
+    val bufferedImage = ImageIO.read(imageFile)
+    val width = bufferedImage?.width
+    val height = bufferedImage?.height
+    return if (width != null && height != null) Pair(width, height) else Pair(720, 1280)
+}

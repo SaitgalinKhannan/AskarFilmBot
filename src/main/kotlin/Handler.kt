@@ -391,10 +391,12 @@ suspend fun BehaviourContext.processDocument(
     /*val fileName = video.fileName ?: "${video.fileId}.mp4"
     val fileExtension = fileName.substringAfterLast('.')*/
 
+    if ("video" in document.mimeType.toString()) {
+        return@withContext null
+    }
+
     val fName = if ("image" in document.mimeType.toString()) {
         "${document.fileId}.jpg"
-    } else if ("video" in document.mimeType.toString()) {
-        document.fileName ?: "${document.fileId}.mp4"
     } else {
         throw Exception("Not supported MIME type")
     }

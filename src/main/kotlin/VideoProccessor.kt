@@ -118,10 +118,15 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
 
         val newHeight = if (height % 2 != 0) height - 1 else height
         val newWidth = if (width % 2 != 0) width - 1 else width
-        //val scale = "$newWidth:$newHeight"
-        val scale = if (newWidth > 1500) "w=1280:h=-2" else "w=$newWidth:h=$newHeight"
-
-        logger.i("scale: $scale")
+        //logger.i("width: $newWidth height: $newHeight")
+        val scale = if (newWidth > 1500) {
+            val targetWidth = 1280
+            val h = (targetWidth.toDouble() / newWidth.toDouble() * newHeight).toInt()
+            "w=$targetWidth:h=${if (h % 2 != 0) h - 1 else h}"
+        } else {
+            "w=$newWidth:h=$newHeight"
+        }
+        //logger.i("scale: $scale")
 
         val inputAudio = if (mode == "dev")
             inputAudioDev
@@ -129,6 +134,30 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
             inputAudio
 
         // Construct the FFmpeg command
+        /*val command = listOf(
+            "ffmpeg",
+            "-i", inputPhoto.absolutePath,  // Input video
+            "-i", overlayImage,  // Overlay image
+            "-i", inputAudio,  // Input audio
+            "-filter_complex",
+            "[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=15,scale=$scale[vfrozen];" +  // Trim, pad, and adjust height to be divisible by 2
+                    "[1:v][vfrozen]scale=rw:rh[overlay][base];" +  // Scale the overlay image to match video size
+                    "[base][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video
+                    "[2:a]anull[a]",  // Use input audio
+            "-map", "[v]",  // Map video stream
+            "-map", "[a]",  // Map audio stream
+            "-c:v", "libx264",  // Video codec
+            "-crf", "18",  // Quality setting for video
+            "-preset", "slow",  // Encoding speed/quality balance
+            "-c:a", "aac",  // Audio codec
+            "-b:a", "192k",  // Audio bitrate
+            "-shortest",  // Trim video to the shortest input length
+            "-movflags", "+faststart",  // Optimize for web playback
+            "-max_muxing_queue_size", "1024",
+            outputVideo.absolutePath,
+            "-y"  // Overwrite without asking
+        )*/
+
         val command = listOf(
             "ffmpeg",
             "-i", inputPhoto.absolutePath,  // Input video
@@ -203,3 +232,8 @@ fun getImageDimensions(imageFile: File): Pair<Int, Int> {
     val height = bufferedImage?.height
     return if (width != null && height != null) Pair(width, height) else Pair(720, 1280)
 }
+
+
+/*"[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=15,scale=$scale[vfrozen];" +  // Trim, pad, and adjust height to be divisible by 2
+                    "[1:v]scale=$scale[overlay];" +  // Scale the overlay image to match video size
+                    "[vfrozen][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video*/

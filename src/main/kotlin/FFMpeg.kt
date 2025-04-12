@@ -3,9 +3,10 @@ import kotlinx.coroutines.*
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
-class FFMpeg() {
+class FFMpeg {
     private val max: Int = 5
     private val countOfProcesses: AtomicInteger = AtomicInteger(0)
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
     private suspend fun CoroutineScope.waitForAvailableSlot() {
         while (isActive) {
@@ -46,39 +47,23 @@ class FFMpeg() {
             }
         }
 
-    /*suspend fun addImageToProcess(inputPhoto: File, height: Int, width: Int, overlayImage: String): File =
-        withContext(Dispatchers.IO) {
-            while (isActive) {
-                val current = countOfProcesses.get()
-                logger.i("current: $current")
-                if (current > max) {
-                    delay(2000)
-                } else {
-                    break
-                }
+    suspend fun test() {
+        /*for (i in 0 until 50) {
+            coroutineScope.launch {
+                addImageToProcess(inputPhoto = File("/home/faye/Projects/RNT/AskarFilmBot/sources/538321015-12.04.25 19:25:35.jpg"), height = 1280, width = 960, overlayImage = "/home/faye/Projects/RNT/AskarFilmBot/resources/poster_blue_top_16:9.png", mode = "dev")
             }
-
-            val file = imageToVideo(inputPhoto, height, width, overlayImage)
-            val count = countOfProcesses.decrementAndGet()
-            logger.i("count: $count")
-            return@withContext file
-        }
-
-    suspend fun addVideoToProcess(inputVideo: File, height: Int, width: Int, overlayImage: String): File =
-        withContext(Dispatchers.IO) {
-            while (isActive) {
-                val current = countOfProcesses.get()
-                logger.i("current: $current")
-                if (current > max) {
-                    delay(2000)
-                } else {
-                    break
-                }
-            }
-
-            val file = videoToVideoWithOverlay(inputVideo, height, width, overlayImage)
-            val count = countOfProcesses.decrementAndGet()
-            logger.i("count: $count")
-            return@withContext file
         }*/
+        val jobs = List(1000) {
+            coroutineScope.launch {
+                addImageToProcess(
+                    inputPhoto = File("/home/faye/Projects/RNT/AskarFilmBot/sources/538321015-12.04.25 19:25:35.jpg"),
+                    height = 1280,
+                    width = 960,
+                    overlayImage = "/home/faye/Projects/RNT/AskarFilmBot/resources/poster_blue_top_16:9.png",
+                    mode = "dev"
+                )
+            }
+        }
+        jobs.forEach { it.join() }
+    }
 }

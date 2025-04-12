@@ -1,31 +1,24 @@
-import dev.inmo.kslog.common.i
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.random.Random
 
-val overlayImages = listOf(
-    "1.png",
-    "2.png",
-    "3.png",
-    "4.png",
-    "5.png",
-    "6.png"
-)
+enum class Poster(val path: String) {
+    BLUE("poster_blue.png"),
+    BLUE_BOTTOM_4_3("poster_blue_bottom_4:3.png"),
+    BLUE_TOP_4_3("poster_blue_top_4:3.png"),
+    BLUE_BOTTOM_16_9("poster_blue_bottom_16:9.png"),
+    BLUE_TOP_16_9("poster_blue_top_16:9.png"),
+    PINK("poster_pink.png"),
+    PINK_BOTTOM_4_3("poster_pink_bottom_4:3.png"),
+    PINK_TOP_4_3("poster_pink_top_4:3.png"),
+    PINK_BOTTOM_16_9("poster_pink_bottom_16:9.png"),
+    PINK_TOP_16_9("poster_pink_top_16:9.png"),
+}
 
-val overlayImagesDev = listOf(
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/1.png",
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/2.png",
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/3.png",
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/4.png",
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/5.png",
-    "/home/rose/RNT/AskarFilmBot/src/main/resources/6.png"
-)
-
-//const val inputAudio = "/home/rose/RNT/AskarFilmBot/src/main/resources/Those around.mp3"
-const val inputAudioDev = "/home/rose/RNT/AskarFilmBot/src/main/resources/Those_around_new.mp3"
-const val inputAudio = "Those_around_new.mp3"
+const val inputAudioDev = "$basePath/resources/Those_around_new.mp3"
+const val inputAudio = "$basePath/resources/Those_around_new.mp3"
 val random = Random(System.currentTimeMillis())
 
 // Asynchronous function to process the video
@@ -40,9 +33,9 @@ suspend fun videoToVideoWithOverlay(
     val fileExtension = inputVideo.extension
     val outputFolder = File(
         if (mode == "dev")
-            "/home/rose/RNT/AskarFilmBot/output"
+            "$basePath/output"
         else
-            "/output"
+            "$basePath/output"
     ) //
     val outputVideo = File("${outputFolder.absolutePath}/${fileName}_new.$fileExtension")
 
@@ -58,25 +51,25 @@ suspend fun videoToVideoWithOverlay(
     // Construct the FFmpeg command
     val command = listOf(
         "ffmpeg",
-        "-i", inputVideo.absolutePath,  // Input video
-        "-i", overlayImage,  // Overlay image
-        "-i", inputAudio,  // Input audio
+        "-i", inputVideo.absolutePath,  // Входное видео
+        "-i", overlayImage,             // Оверлей
+        "-i", inputAudio,               // Аудио
         "-filter_complex",
-        "[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=12[vfrozen];" +  // Trim and pad the video
-                "[1:v]scale=$width:$height[overlay];" +  // Scale the overlay image to match video size
-                "[vfrozen][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video
-                "[2:a]anull[a]",  // Use input audio
-        "-map", "[v]",  // Map video stream
-        "-map", "[a]",  // Map audio stream
-        "-c:v", "libx264",  // Video codec
-        "-crf", "18",  // Quality setting for video
-        "-preset", "slow",  // Encoding speed/quality balance
-        "-c:a", "aac",  // Audio codec
-        "-b:a", "192k",  // Audio bitrate
-        "-shortest",  // Trim video to the shortest input length
-        "-movflags", "+faststart",  // Optimize for web playback
-        outputVideo.absolutePath,
-        "-y"  // Overwrite without asking
+        "[0:v]scale=$width:$height:force_original_aspect_ratio=decrease,pad=$width:$height:(ow-iw)/2:(oh-ih)/2[video]" + // Масштабируем основное видео
+                "[1:v]scale=$width:$height[overlay];" + // Масштабируем оверлей
+                "[video][overlay]overlay=0:0:shortest=1[v];" + // Накладываем оверлей
+                "[2:a]atrim=0:15,asetpts=PTS-STARTPTS[a]", // Обрезаем аудио до 15 сек
+        "-map", "[v]",                  // Берем обработанное видео
+        "-map", "[a]",                  // Берем обрезанное аудио
+        "-c:v", "libx264",              // Кодек видео
+        "-crf", "18",                   // Качество видео
+        "-preset", "slow",              // Баланс скорости/качества
+        "-c:a", "aac",                  // Кодек аудио
+        "-b:a", "192k",                 // Битрейт аудио
+        "-t", "15",                     // Жестко задаем продолжительность 15 сек
+        "-movflags", "+faststart",      // Оптимизация для веба
+        "-y",                           // Перезапись без подтверждения
+        outputVideo.absolutePath
     )
 
     // Execute the command asynchronously
@@ -106,9 +99,9 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         val fileExtension = "mp4"
         val outputFolder = File(
             if (mode == "dev")
-                "/home/rose/RNT/AskarFilmBot/output"
+                "$basePath/output"
             else
-                "/output"
+                "$basePath/output"
         ) //
         val outputVideo = File("${outputFolder.absolutePath}/${fileName}_new.$fileExtension")
 
@@ -133,53 +126,28 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         else
             inputAudio
 
-        // Construct the FFmpeg command
-        /*val command = listOf(
-            "ffmpeg",
-            "-i", inputPhoto.absolutePath,  // Input video
-            "-i", overlayImage,  // Overlay image
-            "-i", inputAudio,  // Input audio
-            "-filter_complex",
-            "[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=15,scale=$scale[vfrozen];" +  // Trim, pad, and adjust height to be divisible by 2
-                    "[1:v][vfrozen]scale=rw:rh[overlay][base];" +  // Scale the overlay image to match video size
-                    "[base][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video
-                    "[2:a]anull[a]",  // Use input audio
-            "-map", "[v]",  // Map video stream
-            "-map", "[a]",  // Map audio stream
-            "-c:v", "libx264",  // Video codec
-            "-crf", "18",  // Quality setting for video
-            "-preset", "slow",  // Encoding speed/quality balance
-            "-c:a", "aac",  // Audio codec
-            "-b:a", "192k",  // Audio bitrate
-            "-shortest",  // Trim video to the shortest input length
-            "-movflags", "+faststart",  // Optimize for web playback
-            "-max_muxing_queue_size", "1024",
-            outputVideo.absolutePath,
-            "-y"  // Overwrite without asking
-        )*/
-
         val command = listOf(
             "ffmpeg",
-            "-i", inputPhoto.absolutePath,  // Input video
-            "-i", overlayImage,  // Overlay image
-            "-i", inputAudio,  // Input audio
+            "-i", inputPhoto.absolutePath,  // Основное фото
+            "-i", overlayImage,            // Оверлей
+            "-i", inputAudio,              // Аудио
             "-filter_complex",
-            "[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=15,scale=$scale[vfrozen];" +  // Trim, pad, and adjust height to be divisible by 2
-                    "[1:v]scale=$scale[overlay];" +  // Scale the overlay image to match video size
-                    "[vfrozen][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video
-                    "[2:a]anull[a]",  // Use input audio
-            "-map", "[v]",  // Map video stream
-            "-map", "[a]",  // Map audio stream
-            "-c:v", "libx264",  // Video codec
-            "-crf", "18",  // Quality setting for video
-            "-preset", "slow",  // Encoding speed/quality balance
-            "-c:a", "aac",  // Audio codec
-            "-b:a", "192k",  // Audio bitrate
-            "-shortest",  // Trim video to the shortest input length
-            "-movflags", "+faststart",  // Optimize for web playback
+            "[0:v]scale=$scale[video];" +
+                    "[1:v]scale=$scale[overlay];" +
+                    "[video][overlay]overlay=0:0[v];" +
+                    "[2:a]atrim=0:15,asetpts=PTS-STARTPTS[a]", // Обрезаем аудио до 15 сек
+            "-map", "[v]",                 // Видеопоток
+            "-map", "[a]",                 // Аудиопоток
+            "-c:v", "libx264",
+            "-crf", "18",
+            "-preset", "slow",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-t", "15",                    // Фиксированная длительность 15 сек
+            "-movflags", "+faststart",
             "-max_muxing_queue_size", "1024",
-            outputVideo.absolutePath,
-            "-y"  // Overwrite without asking
+            "-y",
+            outputVideo.absolutePath
         )
 
         // Execute the command asynchronously
@@ -203,37 +171,9 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         return@withContext outputVideo
     }
 
-/*val command = listOf(
-        "ffmpeg",
-        "-i", inputVideo.absolutePath,  // Input video
-        "-i", overlayImage,  // Overlay image
-        "-i", inputAudio,  // Input audio
-        "-filter_complex",
-        "[0:v]trim=end=5,tpad=stop_mode=clone:stop_duration=10[vfrozen];" +  // Trim and pad the video
-                "[1:v]scale=300:-1[overlay];" +  // Scale the overlay image
-                "[vfrozen][overlay]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2:enable='gte(t,5)'[v];" +  // Overlay settings
-                "[2:a]anull[a]",  // Use input audio
-        "-map", "[v]",  // Map video stream
-        "-map", "[a]",  // Map audio stream
-        "-c:v", "libx264",  // Video codec
-        "-crf", "18",  // Quality setting for video
-        "-preset", "slow",  // Encoding speed/quality balance
-        "-c:a", "aac",  // Audio codec
-        "-b:a", "192k",  // Audio bitrate
-        "-shortest",  // Trim video to the shortest input length
-        "-movflags", "+faststart",  // Optimize for web playback
-        outputVideo.absolutePath,
-        "-y"  // Overwrite without asking
-    )*/
-
 fun getImageDimensions(imageFile: File): Pair<Int, Int> {
     val bufferedImage = ImageIO.read(imageFile)
     val width = bufferedImage?.width
     val height = bufferedImage?.height
     return if (width != null && height != null) Pair(width, height) else Pair(720, 1280)
 }
-
-
-/*"[0:v]trim=end=3,tpad=stop_mode=clone:stop_duration=15,scale=$scale[vfrozen];" +  // Trim, pad, and adjust height to be divisible by 2
-                    "[1:v]scale=$scale[overlay];" +  // Scale the overlay image to match video size
-                    "[vfrozen][overlay]overlay=0:0:enable='gte(t,3)'[v];" +  // Overlay settings to cover the full video*/

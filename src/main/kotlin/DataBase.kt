@@ -9,7 +9,7 @@ import java.sql.SQLException
 val dispatcherIO = Dispatchers.IO
 
 class DataBase {
-    private var connection: Connection = DriverManager.getConnection("jdbc:sqlite:askar_film.db")
+    private var connection: Connection = DriverManager.getConnection("jdbc:sqlite:$basePath/askar_film.db")
 
     init {
         try {

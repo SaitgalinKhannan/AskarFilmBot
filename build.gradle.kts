@@ -2,8 +2,8 @@ val tgbotapi_version: String by project
 val ktor_version: String by project
 
 plugins {
-    kotlin("jvm") version "2.0.20"
-    kotlin("plugin.serialization") version "2.0.20"
+    kotlin("jvm") version "2.1.20"
+    kotlin("plugin.serialization") version "2.1.20"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     application
 }
@@ -28,6 +28,7 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     testImplementation(kotlin("test"))
+    implementation(kotlin("test"))
 }
 
 tasks.test {

@@ -21,12 +21,16 @@ import dev.inmo.tgbotapi.extensions.utils.types.buttons.dataButton
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.requests.abstracts.InputFile
 import dev.inmo.tgbotapi.requests.send.SendTextMessage
-import dev.inmo.tgbotapi.types.*
+import dev.inmo.tgbotapi.types.IdChatIdentifier
+import dev.inmo.tgbotapi.types.MessageId
+import dev.inmo.tgbotapi.types.asTelegramMessageId
 import dev.inmo.tgbotapi.types.files.DocumentFile
 import dev.inmo.tgbotapi.types.files.PhotoSize
 import dev.inmo.tgbotapi.types.files.VideoFile
 import dev.inmo.tgbotapi.types.media.TelegramMediaPhoto
+import dev.inmo.tgbotapi.types.message.HTMLParseMode
 import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
+import dev.inmo.tgbotapi.types.toChatId
 import dev.inmo.tgbotapi.utils.PreviewFeature
 import dev.inmo.tgbotapi.utils.RiskFeature
 import dev.inmo.tgbotapi.utils.buildEntities
@@ -53,7 +57,6 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
             val userFromDB = runCatching {
                 dataBase.getUser(fromUser.id.chatId.long)
             }.getOrNull()
-
             val user = User(
                 userId = fromUser.id.chatId.long,
                 username = fromUser.username?.username ?: "",
@@ -68,16 +71,28 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                 }
             }
 
-            reply(
-                to = it,
-                entities = buildEntities {
+            /*
+            buildEntities {
+                    bold("Привет!")
                     +"""
                         Привет! Я бот, который сделает тебя частичкой фильма «Лето.Город.Любовь.»
                         Сними романтичное, вертикальное фото или видео со своей второй половиной. Отправь мне, я перешлю его создателям фильма. В подарок ты получишь персональный постер, которым можно похвастаться в социальных сетях.
                     """.trimIndent()
                 }
-            )
+            */
 
+            reply(
+                to = it,
+                text = """
+                    <strong>Привет!</strong> 🌟 Я бот, который сделает тебя частичкой фильма <i>Лето.Город.Любовь</i> 🎥
+
+                    📸 <b>Сними</b> романтичное вертикальное фото или видео со своей второй половиной
+                    📤 <b>Отправь</b> его мне — я передам создателям фильма
+                    
+                    🎁 В <u>подарок</u> ты получишь персональный постер, которым можно похвастаться в социальных сетях 💖
+                """.trimIndent(),
+                parseMode = HTMLParseMode
+            )
 
             if (!user.agreement) {
                 val agreementMessage = SendTextMessage(
@@ -125,53 +140,53 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
     }
 
     onPhoto {
-        kotlin.runCatching {
+        runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onPhoto
             logger.i(user)
             val path = processImage(it.content.media, it.chat.id, it.messageId, user, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
-            e.printStackTrace()
-
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
                 reply(to = it, text = "Слишком большой файл, попробуйте отправить фото меньшего размера")
             } else {
                 reply(to = it, text = "Произошла ошибка, попробуйте снова!")
             }
+
+            throw e
         }
     }
 
     onVideo {
-        kotlin.runCatching {
+        runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onVideo
             logger.i(user)
             val path = processVideo(it.content.media, it.chat.id, it.messageId, user, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
-            e.printStackTrace()
-
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
                 reply(to = it, text = "Слишком большой файл, попробуйте отправить более короткое видео")
             } else {
                 reply(to = it, text = "Произошла ошибка, попробуйте снова!")
             }
+
+            throw e
         }
     }
 
     onDocument {
-        kotlin.runCatching {
+        runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onDocument
             logger.i(user)
             val path = processDocument(it.content.media, it.chat.id, it.messageId, user, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
-            e.printStackTrace()
-
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
                 reply(to = it, text = "Слишком большой файл, попробуйте отправить более короткое видео")
             } else {
                 reply(to = it, text = "Произошла ошибка, попробуйте снова!")
             }
+
+            throw e
         }
     }
 
@@ -184,10 +199,10 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                     callback.message.asPossiblyReplyMessage()?.replyTo?.asPossiblyForwardedMessage()?.let { message ->
                         val chatId = if (mode == "dev") -1001731128191 else -4538503015
                         val messageId = callback.data.substringAfter("=").toLongOrNull()
-                        val message1 = forwardMessage(toChatId = ChatId(RawChatId(chatId)), message = message)
+                        val message1 = forwardMessage(toChatId = chatId.toChatId(), message = message)
                         val message2 = if (messageId != null) {
                             forwardMessage(
-                                toChatId = ChatId(RawChatId(chatId)),
+                                toChatId = chatId.toChatId(),
                                 fromChat = callback.message.chat,
                                 messageId = messageId.asTelegramMessageId()
                             )
@@ -196,7 +211,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                         }
 
                         val message3 = sendTextMessage(
-                            chatId = ChatId(RawChatId(chatId)),
+                            chatId = chatId.toChatId(),
                             text = """
                                 ID: ${callback.user.id.chatId.long}
                                 Username: ${callback.user.username?.username ?: "Отсутствует"}
@@ -279,15 +294,20 @@ suspend fun BehaviourContext.processVideo(
     val newFileName = "${chatId.chatId.long}-${formattedDateTime}.${fileExtension}"
     val destinationFile = File(
         if (mode == "dev")
-            "/home/rose/RNT/AskarFilmBot/sources/${newFileName}"
+            "$basePath/sources/${newFileName}"
         else
-            "/sources/${newFileName}"
+            "$basePath/sources/${newFileName}"
     ) //
     val file = downloadFile(video.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
-    val poster = choosePoster(chatId, mode) ?: return@withContext null
-    val processedVideo = ffMpeg.addVideoToProcess(file, video.height, video.width, poster, mode)
-
+    val poster = choosePoster(height = video.height, width = video.width, chatId = chatId, mode = mode) ?: return@withContext null
+    val processedVideo = ffMpeg.addVideoToProcess(
+        inputVideo = file,
+        height = video.height,
+        width = video.width,
+        overlayImage = poster,
+        mode = mode
+    )
     val message = sendVideo(
         chatId = chatId,
         text = """
@@ -336,16 +356,14 @@ suspend fun BehaviourContext.processImage(
     val newFileName = "${chatId.chatId.long}-${formattedDateTime}.${fileExtension}"
     val destinationFile = File(
         if (mode == "dev")
-            "/home/rose/RNT/AskarFilmBot/sources/${newFileName}"
+            "$basePath/sources/${newFileName}"
         else
-            "/sources/${newFileName}"
+            "$basePath/sources/${newFileName}"
     ) //
     val file = downloadFile(photo.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась, подождите немного ...")
-    val poster = choosePoster(chatId, mode) ?: return@withContext null
-    //val processedVideo = imageToVideo(file, photo.height, photo.width, poster)
+    val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode) ?: return@withContext null
     val processedVideo = ffMpeg.addImageToProcess(file, photo.height, photo.width, poster, mode)
-
     val message = sendVideo(
         chatId = chatId,
         text = """
@@ -388,9 +406,6 @@ suspend fun BehaviourContext.processDocument(
     user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
-    /*val fileName = video.fileName ?: "${video.fileId}.mp4"
-    val fileExtension = fileName.substringAfterLast('.')*/
-
     if ("video" in document.mimeType.toString()) {
         return@withContext null
     }
@@ -401,19 +416,16 @@ suspend fun BehaviourContext.processDocument(
         throw Exception("Not supported MIME type")
     }
     val fileExtension = fName.substringAfterLast('.')
-
     val currentDateTime = LocalDateTime.now()
     val formattedDateTime = currentDateTime.format(formatter)
     val newFileName = "${chatId.chatId.long}-${formattedDateTime}.${fileExtension}"
     val destinationFile = File(
         if (mode == "dev")
-            "/home/rose/RNT/AskarFilmBot/sources/${newFileName}"
+            "$basePath/sources/${newFileName}"
         else
-            "/sources/${newFileName}"
+            "$basePath//sources/${newFileName}"
     )
     val file = downloadFile(document.fileId, destinationFile)
-    reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
-    val poster = choosePoster(chatId, mode) ?: return@withContext null
     val (width, height) = if ("image" in document.mimeType.toString()) {
         getImageDimensions(file)
     } else if ("video" in document.mimeType.toString()) {
@@ -421,6 +433,8 @@ suspend fun BehaviourContext.processDocument(
     } else {
         throw Exception("Not supported MIME type")
     }
+    reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
+    val poster = choosePoster(height = height, width = width, chatId = chatId, mode = mode) ?: return@withContext null
     logger.i("width: $width, height: $height")
     val processedVideo = if ("image" in document.mimeType.toString()) {
         ffMpeg.addImageToProcess(file, height, width, poster, mode)
@@ -464,16 +478,32 @@ suspend fun BehaviourContext.processDocument(
 }
 
 @OptIn(RiskFeature::class)
-suspend fun BehaviourContext.choosePoster(chatId: IdChatIdentifier, mode: String): String? {
-    val images = if (mode == "dev") {
-        overlayImagesDev
+suspend fun BehaviourContext.choosePoster(
+    height: Int,
+    width: Int,
+    chatId: IdChatIdentifier,
+    mode: String
+): String? {
+    val ratio = getAspectRatio(height = height, width = width)
+    val examplePosters = if (ratio == AspectRatio.R169) {
+        listOf(
+            Poster.BLUE_TOP_16_9,
+            Poster.BLUE_BOTTOM_16_9,
+            Poster.PINK_TOP_16_9,
+            Poster.PINK_BOTTOM_16_9
+        )
     } else {
-        overlayImages
+        listOf(
+            Poster.BLUE_TOP_4_3,
+            Poster.BLUE_BOTTOM_4_3,
+            Poster.PINK_TOP_4_3,
+            Poster.PINK_BOTTOM_4_3
+        )
     }
+    val images = examplePosters.map { if (mode == "dev") "$basePath/resources/${it.path}" else "$basePath/resources/${it.path}" }
     val photos = images.map {
         TelegramMediaPhoto(InputFile.fromFile(File(it)))
-    }.toMutableList()
-
+    }.toList()
     val message = sendMediaGroup(
         chatId = chatId,
         media = photos
@@ -486,12 +516,10 @@ suspend fun BehaviourContext.choosePoster(chatId: IdChatIdentifier, mode: String
             row {
                 dataButton("1", "1")
                 dataButton("2", "2")
-                dataButton("3", "3")
             }
             row {
+                dataButton("3", "3")
                 dataButton("4", "4")
-                dataButton("5", "5")
-                dataButton("6", "6")
             }
             row {
                 dataButton("Отмена", "cancel")
@@ -505,7 +533,7 @@ suspend fun BehaviourContext.choosePoster(chatId: IdChatIdentifier, mode: String
             .filter { callback -> callback.user.id == chatId }
             .map { callback ->
                 val photo = when (callback.data) {
-                    "1", "2", "3", "4", "5", "6" -> {
+                    "1", "2", "3", "4" -> {
                         val photoId = callback.data.toIntOrNull()
                         if (photoId != null) {
                             images[photoId - 1]
@@ -531,4 +559,31 @@ suspend fun BehaviourContext.choosePoster(chatId: IdChatIdentifier, mode: String
             .filter { content -> content.chat.id == chatId }
             .map { null }
     ).first()
+}
+
+enum class AspectRatio {
+    R43,
+    R169,
+    R11
+}
+
+fun getAspectRatio(height: Int, width: Int): AspectRatio {
+    if (height <= 0 || width <= 0) return AspectRatio.R43
+
+    val ratio = maxOf(height, width).toDouble() / minOf(height, width).toDouble()
+    val thresholdPercent = 0.1 // 10% порог
+
+    val target43 = 4.0 / 3.0
+    val target169 = 16.0 / 9.0
+
+    val lower43 = target43 * (1 - thresholdPercent)
+    val upper43 = target43 * (1 + thresholdPercent)
+    val lower169 = target169 * (1 - thresholdPercent)
+    val upper169 = target169 * (1 + thresholdPercent)
+
+    return when (ratio) {
+        in lower43..upper43 -> AspectRatio.R43
+        in lower169..upper169 -> AspectRatio.R169
+        else -> AspectRatio.R11
+    }
 }

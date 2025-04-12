@@ -9,12 +9,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import java.io.File
 
+const val basePath = "/home/faye/Projects/RNT/AskarFilmBot"
+//const val basePath = "/root/AskarFilmBot"
 val logger = DefaultKSLog(defaultTag = "TelegramBot")
 
 suspend fun main(args: Array<String>) {
     val mode = args.firstOrNull()?.let { if (it == "prod") "prod" else null } ?: "dev"
-    val bot = telegramBot("7480243763:AAEiKkUvt1bygSzDdFSy_4hPTAAYoqkMx80")
-    //val bot = telegramBot("7373274922:AAEyLbf-6w0TyBve9lt0hO65B0I07EjgwFI")
+    val bot =
+        telegramBot(if (mode == "prod") "7480243763:AAEiKkUvt1bygSzDdFSy_4hPTAAYoqkMx80" else "8118618681:AAHDsMLFdq3e6FPMsZxvHC4A4R6T7LmDJA4")
     val commands: List<BotCommand> = listOf(BotCommand("start", "Старт"))
     val dataBase = DataBase()
     val description = """
@@ -24,21 +26,28 @@ suspend fun main(args: Array<String>) {
 
     bot.setMyCommands(commands)
     bot.setMyDescription(description)
-    bot.setMyShortDescription("Привет! Я бот, который сделает тебя частичкой фильма «Лето.Город.Любовь.»")
+    bot.setMyShortDescription("Привет! Я бот, который сделает тебя частичкой фильма Лето.Город.Любовь.")
 
-    runCatching {
-        val sources = File("/sources")
+    try {
+        val sources = File("$basePath/sources")
         if (!sources.exists()) {
             sources.mkdir()
         }
 
-        val output = File("/output")
+        val output = File("$basePath/output")
         if (!output.exists()) {
             output.mkdir()
         }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 
-    bot.buildBehaviourWithLongPolling(scope = CoroutineScope(Dispatchers.IO)) {
+    bot.buildBehaviourWithLongPolling(
+        scope = CoroutineScope(Dispatchers.IO),
+        defaultExceptionsHandler = { e ->
+            e.printStackTrace()
+        }
+    ) {
         handlers(dataBase, mode)
     }.join()
 }

@@ -5,6 +5,7 @@ import dev.inmo.tgbotapi.extensions.api.answers.answerCallbackQuery
 import dev.inmo.tgbotapi.extensions.api.deleteMessage
 import dev.inmo.tgbotapi.extensions.api.files.downloadFile
 import dev.inmo.tgbotapi.extensions.api.forwardMessage
+import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
 import dev.inmo.tgbotapi.extensions.api.send.media.sendMediaGroup
 import dev.inmo.tgbotapi.extensions.api.send.media.sendVideo
 import dev.inmo.tgbotapi.extensions.api.send.reply
@@ -241,7 +242,8 @@ suspend fun BehaviourContext.processVideo(
     ) //
     val file = downloadFile(video.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
-    val poster = choosePoster(height = video.height, width = video.width, chatId = chatId, mode = mode) ?: return@withContext null
+    val poster = choosePoster(height = video.height, width = video.width, chatId = chatId, mode = mode)
+        ?: return@withContext null
     val processedVideo = ffMpeg.addVideoToProcess(
         inputVideo = file,
         height = video.height,
@@ -249,17 +251,30 @@ suspend fun BehaviourContext.processVideo(
         overlayImage = poster,
         mode = mode
     )
-    val message = sendVideo(
-        chatId = chatId,
-        text = """
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
             Готово!
             Не забудь выложить его в своих соц сетях и увидимся в кино!
         """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
-        height = video.height,
-        width = video.width,
-        duration = 15
-    )
+            video = InputFile.fromFile(processedVideo),
+            height = video.height,
+            width = video.width,
+            duration = 15
+        )
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
+        )
+        e.printStackTrace()
+        throw e
+    }
 
     return@withContext file.absolutePath
 }
@@ -282,19 +297,34 @@ suspend fun BehaviourContext.processImage(
     ) //
     val file = downloadFile(photo.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась, подождите немного ...")
-    val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode) ?: return@withContext null
+    val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode)
+        ?: return@withContext null
     val processedVideo = ffMpeg.addImageToProcess(file, photo.height, photo.width, poster, mode)
-    sendVideo(
-        chatId = chatId,
-        text = """
-            Готово!
-            Не забудь выложить его в своих соц сетях и увидимся в кино!
-        """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
-        height = photo.height,
-        width = photo.width,
-        duration = 15
-    )
+
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            video = InputFile.fromFile(processedVideo),
+            height = photo.height,
+            width = photo.width,
+            duration = 15
+        )
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
+        )
+        e.printStackTrace()
+        throw e
+    }
 
     return@withContext file.absolutePath
 }
@@ -343,15 +373,28 @@ suspend fun BehaviourContext.processDocument(
         throw Exception("Not supported MIME type")
     }
 
-    sendVideo(
-        chatId = chatId,
-        text = """
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
             Готово!
             Не забудь выложить его в своих соц сетях и увидимся в кино!
         """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
-        duration = 15
-    )
+            video = InputFile.fromFile(processedVideo),
+            duration = 15
+        )
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
+        )
+        e.printStackTrace()
+        throw e
+    }
 
     return@withContext file.absolutePath
 }
@@ -379,7 +422,8 @@ suspend fun BehaviourContext.choosePoster(
             Poster.PINK_BOTTOM_4_3
         )
     }
-    val images = examplePosters.map { if (mode == "dev") "$basePath/resources/${it.path}" else "$basePath/resources/${it.path}" }
+    val images =
+        examplePosters.map { if (mode == "dev") "$basePath/resources/${it.path}" else "$basePath/resources/${it.path}" }
     val photos = images.map {
         TelegramMediaPhoto(InputFile.fromFile(File(it)))
     }.toList()

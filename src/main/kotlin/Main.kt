@@ -9,8 +9,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import java.io.File
 
-const val basePath = "/home/faye/Projects/RNT/AskarFilmBot"
-//const val basePath = "/root/AskarFilmBot"
+//const val basePath = "/home/faye/Projects/RNT/AskarFilmBot"
+const val basePath = "/root/AskarFilmBot"
 val logger = DefaultKSLog(defaultTag = "TelegramBot")
 
 suspend fun main(args: Array<String>) {

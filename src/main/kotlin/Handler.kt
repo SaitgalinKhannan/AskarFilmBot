@@ -8,7 +8,6 @@ import dev.inmo.tgbotapi.extensions.api.forwardMessage
 import dev.inmo.tgbotapi.extensions.api.send.media.sendMediaGroup
 import dev.inmo.tgbotapi.extensions.api.send.media.sendVideo
 import dev.inmo.tgbotapi.extensions.api.send.reply
-import dev.inmo.tgbotapi.extensions.api.send.sendMessage
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitAnyContentMessage
@@ -20,7 +19,6 @@ import dev.inmo.tgbotapi.extensions.utils.asPossiblyReplyMessage
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.dataButton
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.requests.abstracts.InputFile
-import dev.inmo.tgbotapi.requests.send.SendTextMessage
 import dev.inmo.tgbotapi.types.IdChatIdentifier
 import dev.inmo.tgbotapi.types.MessageId
 import dev.inmo.tgbotapi.types.asTelegramMessageId
@@ -33,7 +31,6 @@ import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
 import dev.inmo.tgbotapi.types.toChatId
 import dev.inmo.tgbotapi.utils.PreviewFeature
 import dev.inmo.tgbotapi.utils.RiskFeature
-import dev.inmo.tgbotapi.utils.buildEntities
 import dev.inmo.tgbotapi.utils.row
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -71,16 +68,6 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                 }
             }
 
-            /*
-            buildEntities {
-                    bold("Привет!")
-                    +"""
-                        Привет! Я бот, который сделает тебя частичкой фильма «Лето.Город.Любовь.»
-                        Сними романтичное, вертикальное фото или видео со своей второй половиной. Отправь мне, я перешлю его создателям фильма. В подарок ты получишь персональный постер, которым можно похвастаться в социальных сетях.
-                    """.trimIndent()
-                }
-            */
-
             reply(
                 to = it,
                 text = """
@@ -93,49 +80,6 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                 """.trimIndent(),
                 parseMode = HTMLParseMode
             )
-
-            if (!user.agreement) {
-                val agreementMessage = SendTextMessage(
-                    chatId = it.chat.id,
-                    entities = buildEntities {
-                        +"""
-                            Нажимая «Да» вы соглашаетесь с тем, что ваше изображение может быть использовано в фильме «Город.Лето.Любовь.»
-                        """.trimIndent()
-                    },
-                    replyMarkup = inlineKeyboard {
-                        row {
-                            dataButton("Не согласен ❌", "not agree")
-                            dataButton("Согласен ✅", "agree")
-                        }
-                    }
-                )
-
-                merge(
-                    waitMessageDataCallbackQuery(agreementMessage)
-                        .filter { callback -> callback.user.id == it.chat.id }
-                        .map { callback ->
-                            when (callback.data) {
-                                "agree" -> {
-                                    runCatching {
-                                        dataBase.updateUser(user.copy(agreement = true))
-                                    }.onSuccess { result ->
-                                        if (result) {
-                                            sendMessage(
-                                                chat = it.chat,
-                                                text = "Вы согласились передать видеоматериалы."
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            answerCallbackQuery(callback)
-                            deleteMessage(callback.message)
-                        },
-                    waitAnyContentMessage()
-                        .filter { content -> content.chat == it.chat }
-                        .map { false }
-                ).first()
-            }
         }
     }
 
@@ -143,7 +87,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onPhoto
             logger.i(user)
-            val path = processImage(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processImage(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -160,7 +104,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onVideo
             logger.i(user)
-            val path = processVideo(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processVideo(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -177,7 +121,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onDocument
             logger.i(user)
-            val path = processDocument(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processDocument(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -284,7 +228,6 @@ suspend fun BehaviourContext.processVideo(
     video: VideoFile,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     val fileName = video.fileName ?: "${video.fileId}.mp4"
@@ -320,26 +263,6 @@ suspend fun BehaviourContext.processVideo(
         duration = 15
     )
 
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
-        )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
-        )
-    }
-
     return@withContext file.absolutePath
 }
 
@@ -347,7 +270,6 @@ suspend fun BehaviourContext.processImage(
     photo: PhotoSize,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     val fileExtension = "jpg"
@@ -364,7 +286,7 @@ suspend fun BehaviourContext.processImage(
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась, подождите немного ...")
     val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode) ?: return@withContext null
     val processedVideo = ffMpeg.addImageToProcess(file, photo.height, photo.width, poster, mode)
-    val message = sendVideo(
+    sendVideo(
         chatId = chatId,
         text = """
             Готово!
@@ -376,26 +298,6 @@ suspend fun BehaviourContext.processImage(
         duration = 15
     )
 
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
-        )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
-        )
-    }
-
     return@withContext file.absolutePath
 }
 
@@ -403,7 +305,6 @@ suspend fun BehaviourContext.processDocument(
     document: DocumentFile,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     if ("video" in document.mimeType.toString()) {
@@ -444,7 +345,7 @@ suspend fun BehaviourContext.processDocument(
         throw Exception("Not supported MIME type")
     }
 
-    val message = sendVideo(
+    sendVideo(
         chatId = chatId,
         text = """
             Готово!
@@ -453,26 +354,6 @@ suspend fun BehaviourContext.processDocument(
         video = InputFile.fromFile(processedVideo),
         duration = 15
     )
-
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
-        )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
-        )
-    }
 
     return@withContext file.absolutePath
 }

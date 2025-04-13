@@ -57,7 +57,7 @@ suspend fun videoToVideoWithOverlay(
         "-filter_complex",
         "[0:v]scale=$width:$height:force_original_aspect_ratio=decrease,pad=$width:$height:(ow-iw)/2:(oh-ih)/2[video]" + // Масштабируем основное видео
                 "[1:v]scale=$width:$height[overlay];" + // Масштабируем оверлей
-                "[video][overlay]overlay=0:0:shortest=1[v];" + // Накладываем оверлей
+                "[video][overlay]overlay=0:0:shortest=1,noise=c0s=40:c0f=t+u[v];" + // Накладываем оверлей
                 "[2:a]atrim=0:15,asetpts=PTS-STARTPTS[a]", // Обрезаем аудио до 15 сек
         "-map", "[v]",                  // Берем обработанное видео
         "-map", "[a]",                  // Берем обрезанное аудио
@@ -134,7 +134,7 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
             "-filter_complex",
             "[0:v]scale=$scale[video];" +
                     "[1:v]scale=$scale[overlay];" +
-                    "[video][overlay]overlay=0:0[v];" +
+                    "[video][overlay]overlay=0:0,noise=c0s=40:c0f=t+u[v];" +
                     "[2:a]atrim=0:15,asetpts=PTS-STARTPTS[a]", // Обрезаем аудио до 15 сек
             "-map", "[v]",                 // Видеопоток
             "-map", "[a]",                 // Аудиопоток

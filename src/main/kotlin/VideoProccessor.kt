@@ -1,3 +1,4 @@
+import dev.inmo.kslog.common.i
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -71,11 +72,11 @@ suspend fun videoToVideoWithOverlay(
                 "[2:a]atrim=duration=15,asetpts=PTS-STARTPTS[a]",
         "-map", "[v]",                         // Выбираем обработанное видео
         "-map", "[a]",                         // Выбираем обработанное аудио
-        "-c:v", "libx264",                      // Кодек для видео h264_nvenc libx264
-        "-crf", "25",                           // Качество видео
-        "-preset", "slow",                      // Баланс скорости и качества
+        "-c:v", "libx265",                      // Кодек для видео h264_nvenc libx264 libx265
+        "-crf", "28",                           // Качество видео
+        "-preset", "medium",                      // Баланс скорости и качества
         "-c:a", "aac",                          // Кодек для аудио
-        "-b:a", "192k",                         // Битрейт аудио
+        "-b:a", "128k",                         // Битрейт аудио
         "-shortest",                            // Продолжительность по самому короткому потоку
         "-movflags", "+faststart",              // Оптимизация для веб-плееров
         //"-vf", "noise=alls=60:allf=t+u",
@@ -142,7 +143,7 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
             else
                 "$basePath/output"
         ) //
-        val outputVideo = File("${outputFolder.absolutePath}/${fileName}_new.$fileExtension")
+        val outputVideo = File("${outputFolder.absolutePath}/${fileName}_new_${UUID.randomUUID()}.$fileExtension")
 
         if (!outputFolder.exists()) {
             outputFolder.mkdirs()
@@ -154,11 +155,16 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
         val scale = if (newWidth > 1500) {
             val targetWidth = 1280
             val h = (targetWidth.toDouble() / newWidth.toDouble() * newHeight).toInt()
-            "w=$targetWidth:h=${if (h % 2 != 0) h - 1 else h}"
+            val targetHeight = if (h % 2 != 0) h - 1 else h
+            if (targetHeight > targetWidth) {
+                "w=$targetWidth:h=$targetHeight"
+            } else {
+                "w=$targetHeight:h=$targetWidth"
+            }
         } else {
             "w=$newWidth:h=$newHeight"
         }
-        //logger.i("scale: $scale")
+        logger.i("scale: $scale")
 
         val inputAudio = if (mode == "dev")
             inputAudioDev
@@ -174,15 +180,15 @@ suspend fun imageToVideo(inputPhoto: File, height: Int, width: Int, overlayImage
             "-filter_complex",
             "[0:v]scale=$scale[video];" +
                     "[1:v]scale=$scale[overlay];" +
-                    "[video][overlay]overlay=0:0,noise=c0s=40:c0f=t+u,fps=24[v];" + // накладываем оверлей, шум и задаем fps=24
+                    "[video][overlay]overlay=0:0,noise=c0s=40:c0f=t+u,fps=15[v];" + // накладываем оверлей, шум и задаем fps=24
                     "[2:a]atrim=0:15,asetpts=PTS-STARTPTS[a]",                   // обрезаем аудио до 15 сек
             "-map", "[v]",                           // Видеопоток
             "-map", "[a]",                           // Аудиопоток
-            "-c:v", "libx264",
-            "-crf", "25",
-            "-preset", "slow",
+            "-c:v", "libx265",
+            "-crf", "28",
+            "-preset", "medium",
             "-c:a", "aac",
-            "-b:a", "192k",
+            "-b:a", "128k",
             "-t", "15",                              // Фиксированная длительность 15 сек
             "-movflags", "+faststart",
             "-max_muxing_queue_size", "1024",

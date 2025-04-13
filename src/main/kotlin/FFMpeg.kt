@@ -4,7 +4,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 class FFMpeg {
-    private val max: Int = 5
+    private val max: Int = 3
     private val countOfProcesses: AtomicInteger = AtomicInteger(0)
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 
@@ -26,7 +26,13 @@ class FFMpeg {
             waitForAvailableSlot()
             countOfProcesses.incrementAndGet()  // Increment when starting a new process
             try {
-                val file = imageToVideo(inputPhoto, height, width, overlayImage, mode)
+                val file = imageToVideo(
+                    inputPhoto = inputPhoto,
+                    height = height,
+                    width = width,
+                    overlayImage = overlayImage,
+                    mode = mode
+                )
                 return@withContext file
             } finally {
                 val count = countOfProcesses.decrementAndGet()  // Decrement after finishing the process

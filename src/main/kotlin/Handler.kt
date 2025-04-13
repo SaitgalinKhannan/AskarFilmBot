@@ -299,7 +299,13 @@ suspend fun BehaviourContext.processImage(
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась, подождите немного ...")
     val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode)
         ?: return@withContext null
-    val processedVideo = ffMpeg.addImageToProcess(file, photo.height, photo.width, poster, mode)
+    val processedVideo = ffMpeg.addImageToProcess(
+        inputPhoto = file,
+        height = photo.height,
+        width = photo.width,
+        overlayImage = poster,
+        mode = mode
+    )
 
     try {
         sendVideo(
@@ -366,7 +372,7 @@ suspend fun BehaviourContext.processDocument(
     val poster = choosePoster(height = height, width = width, chatId = chatId, mode = mode) ?: return@withContext null
     logger.i("width: $width, height: $height")
     val processedVideo = if ("image" in document.mimeType.toString()) {
-        ffMpeg.addImageToProcess(file, height, width, poster, mode)
+        ffMpeg.addImageToProcess(inputPhoto = file, height = height, width = width, overlayImage = poster, mode = mode)
     } else if ("video" in document.mimeType.toString()) {
         ffMpeg.addVideoToProcess(file, height, width, poster, mode)
     } else {

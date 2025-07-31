@@ -5,10 +5,10 @@ import dev.inmo.tgbotapi.extensions.api.answers.answerCallbackQuery
 import dev.inmo.tgbotapi.extensions.api.deleteMessage
 import dev.inmo.tgbotapi.extensions.api.files.downloadFile
 import dev.inmo.tgbotapi.extensions.api.forwardMessage
+import dev.inmo.tgbotapi.extensions.api.send.media.sendDocument
 import dev.inmo.tgbotapi.extensions.api.send.media.sendMediaGroup
 import dev.inmo.tgbotapi.extensions.api.send.media.sendVideo
 import dev.inmo.tgbotapi.extensions.api.send.reply
-import dev.inmo.tgbotapi.extensions.api.send.sendMessage
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitAnyContentMessage
@@ -20,7 +20,6 @@ import dev.inmo.tgbotapi.extensions.utils.asPossiblyReplyMessage
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.dataButton
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.requests.abstracts.InputFile
-import dev.inmo.tgbotapi.requests.send.SendTextMessage
 import dev.inmo.tgbotapi.types.IdChatIdentifier
 import dev.inmo.tgbotapi.types.MessageId
 import dev.inmo.tgbotapi.types.asTelegramMessageId
@@ -33,7 +32,6 @@ import dev.inmo.tgbotapi.types.message.abstracts.CommonMessage
 import dev.inmo.tgbotapi.types.toChatId
 import dev.inmo.tgbotapi.utils.PreviewFeature
 import dev.inmo.tgbotapi.utils.RiskFeature
-import dev.inmo.tgbotapi.utils.buildEntities
 import dev.inmo.tgbotapi.utils.row
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -71,71 +69,16 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
                 }
             }
 
-            /*
-            buildEntities {
-                    bold("Привет!")
-                    +"""
-                        Привет! Я бот, который сделает тебя частичкой фильма «Лето.Город.Любовь.»
-                        Сними романтичное, вертикальное фото или видео со своей второй половиной. Отправь мне, я перешлю его создателям фильма. В подарок ты получишь персональный постер, которым можно похвастаться в социальных сетях.
-                    """.trimIndent()
-                }
-            */
-
             reply(
                 to = it,
                 text = """
                     <strong>Привет!</strong> 🌟 Я бот, который сделает тебя частичкой фильма <i>Лето.Город.Любовь</i> 🎥
 
                     📸 <b>Сними</b> романтичное вертикальное фото или видео со своей второй половиной
-                    📤 <b>Отправь</b> его мне — я передам создателям фильма
-                    
-                    🎁 В <u>подарок</u> ты получишь персональный постер, которым можно похвастаться в социальных сетях 💖
+                    📤 <b>Отправь</b> его мне и получи персональный постер, которым можно похвастаться в социальных сетях 💖
                 """.trimIndent(),
                 parseMode = HTMLParseMode
             )
-
-            if (!user.agreement) {
-                val agreementMessage = SendTextMessage(
-                    chatId = it.chat.id,
-                    entities = buildEntities {
-                        +"""
-                            Нажимая «Да» вы соглашаетесь с тем, что ваше изображение может быть использовано в фильме «Город.Лето.Любовь.»
-                        """.trimIndent()
-                    },
-                    replyMarkup = inlineKeyboard {
-                        row {
-                            dataButton("Не согласен ❌", "not agree")
-                            dataButton("Согласен ✅", "agree")
-                        }
-                    }
-                )
-
-                merge(
-                    waitMessageDataCallbackQuery(agreementMessage)
-                        .filter { callback -> callback.user.id == it.chat.id }
-                        .map { callback ->
-                            when (callback.data) {
-                                "agree" -> {
-                                    runCatching {
-                                        dataBase.updateUser(user.copy(agreement = true))
-                                    }.onSuccess { result ->
-                                        if (result) {
-                                            sendMessage(
-                                                chat = it.chat,
-                                                text = "Вы согласились передать видеоматериалы."
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            answerCallbackQuery(callback)
-                            deleteMessage(callback.message)
-                        },
-                    waitAnyContentMessage()
-                        .filter { content -> content.chat == it.chat }
-                        .map { false }
-                ).first()
-            }
         }
     }
 
@@ -143,7 +86,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onPhoto
             logger.i(user)
-            val path = processImage(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processImage(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -160,7 +103,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onVideo
             logger.i(user)
-            val path = processVideo(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processVideo(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -177,7 +120,7 @@ suspend fun BehaviourContext.handlers(dataBase: DataBase, mode: String) {
         runCatching {
             val user = dataBase.getUser(it.chat.id.chatId.long) ?: return@onDocument
             logger.i(user)
-            val path = processDocument(it.content.media, it.chat.id, it.messageId, user, mode)
+            val path = processDocument(it.content.media, it.chat.id, it.messageId, mode)
             saveVideoData(path, user, dataBase, it)
         }.onFailure { e ->
             if (e is CommonRequestException && "file is too big" in e.response.description.toString()) {
@@ -284,7 +227,6 @@ suspend fun BehaviourContext.processVideo(
     video: VideoFile,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     val fileName = video.fileName ?: "${video.fileId}.mp4"
@@ -300,7 +242,8 @@ suspend fun BehaviourContext.processVideo(
     ) //
     val file = downloadFile(video.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась ...")
-    val poster = choosePoster(height = video.height, width = video.width, chatId = chatId, mode = mode) ?: return@withContext null
+    val poster = choosePoster(height = video.height, width = video.width, chatId = chatId, mode = mode)
+        ?: return@withContext null
     val processedVideo = ffMpeg.addVideoToProcess(
         inputVideo = file,
         height = video.height,
@@ -308,36 +251,29 @@ suspend fun BehaviourContext.processVideo(
         overlayImage = poster,
         mode = mode
     )
-    val message = sendVideo(
-        chatId = chatId,
-        text = """
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
             Готово!
             Не забудь выложить его в своих соц сетях и увидимся в кино!
         """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
-        height = video.height,
-        width = video.width,
-        duration = 15
-    )
-
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
+            video = InputFile.fromFile(processedVideo),
+            height = video.height,
+            width = video.width,
+            duration = 15
         )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
         )
+        e.printStackTrace()
+        throw e
     }
 
     return@withContext file.absolutePath
@@ -347,7 +283,6 @@ suspend fun BehaviourContext.processImage(
     photo: PhotoSize,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     val fileExtension = "jpg"
@@ -362,38 +297,39 @@ suspend fun BehaviourContext.processImage(
     ) //
     val file = downloadFile(photo.fileId, destinationFile)
     reply(toChatId = chatId, toMessageId = messageId, text = "Обработка началась, подождите немного ...")
-    val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode) ?: return@withContext null
-    val processedVideo = ffMpeg.addImageToProcess(file, photo.height, photo.width, poster, mode)
-    val message = sendVideo(
-        chatId = chatId,
-        text = """
-            Готово!
-            Не забудь выложить его в своих соц сетях и увидимся в кино!
-        """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
+    val poster = choosePoster(height = photo.height, width = photo.width, chatId = chatId, mode = mode)
+        ?: return@withContext null
+    val processedVideo = ffMpeg.addImageToProcess(
+        inputPhoto = file,
         height = photo.height,
         width = photo.width,
-        duration = 15
+        overlayImage = poster,
+        mode = mode
     )
 
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            video = InputFile.fromFile(processedVideo),
+            height = photo.height,
+            width = photo.width,
+            duration = 15
         )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
         )
+        e.printStackTrace()
+        throw e
     }
 
     return@withContext file.absolutePath
@@ -403,7 +339,6 @@ suspend fun BehaviourContext.processDocument(
     document: DocumentFile,
     chatId: IdChatIdentifier,
     messageId: MessageId,
-    user: User,
     mode: String
 ): String? = withContext(dispatcherIO) {
     if ("video" in document.mimeType.toString()) {
@@ -437,41 +372,34 @@ suspend fun BehaviourContext.processDocument(
     val poster = choosePoster(height = height, width = width, chatId = chatId, mode = mode) ?: return@withContext null
     logger.i("width: $width, height: $height")
     val processedVideo = if ("image" in document.mimeType.toString()) {
-        ffMpeg.addImageToProcess(file, height, width, poster, mode)
+        ffMpeg.addImageToProcess(inputPhoto = file, height = height, width = width, overlayImage = poster, mode = mode)
     } else if ("video" in document.mimeType.toString()) {
         ffMpeg.addVideoToProcess(file, height, width, poster, mode)
     } else {
         throw Exception("Not supported MIME type")
     }
 
-    val message = sendVideo(
-        chatId = chatId,
-        text = """
+    try {
+        sendVideo(
+            chatId = chatId,
+            text = """
             Готово!
             Не забудь выложить его в своих соц сетях и увидимся в кино!
         """.trimIndent(),
-        video = InputFile.fromFile(processedVideo),
-        duration = 15
-    )
-
-    if (user.agreement) {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Отправить это фото/видео создателям фильма, чтобы оно стало частью фильма?",
-            replyMarkup = inlineKeyboard {
-                row {
-                    dataButton("Нет", "no")
-                    dataButton("Да", "yes=${message.messageId.long}")
-                }
-            }
+            video = InputFile.fromFile(processedVideo),
+            duration = 15
         )
-    } else {
-        reply(
-            toChatId = chatId,
-            toMessageId = messageId,
-            text = "Если хотите отправит свое фото/видео создателям фильма, чтобы оно попало в титры, нажмите /start и примите соглашение.",
+    } catch (e: Exception) {
+        sendDocument(
+            chatId = chatId,
+            text = """
+                Готово!
+                Не забудь выложить его в своих соц сетях и увидимся в кино!
+            """.trimIndent(),
+            document = InputFile.fromFile(processedVideo),
         )
+        e.printStackTrace()
+        throw e
     }
 
     return@withContext file.absolutePath
@@ -500,7 +428,8 @@ suspend fun BehaviourContext.choosePoster(
             Poster.PINK_BOTTOM_4_3
         )
     }
-    val images = examplePosters.map { if (mode == "dev") "$basePath/resources/${it.path}" else "$basePath/resources/${it.path}" }
+    val images =
+        examplePosters.map { if (mode == "dev") "$basePath/resources/${it.path}" else "$basePath/resources/${it.path}" }
     val photos = images.map {
         TelegramMediaPhoto(InputFile.fromFile(File(it)))
     }.toList()
